@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Minecraft Dialog GUI Generator</title>
+<meta name="description" content="Build Minecraft /dialog show commands visually. Runs entirely in your browser, works offline.">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #111; --panel: #1c1c1c; --border: #333; --text: #eee; --muted: #aaa;
+    --field: #111; --field-border: #444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text);
+    padding: 30px; padding-top: max(30px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(30px, env(safe-area-inset-bottom, 0px));
+  }
+  .container { max-width: 900px; margin: auto; }
+  h1 { text-align: center; margin-bottom: 30px; }
+  .section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  h2 { margin-top: 0; }
+  h3 { margin-bottom: 8px; }
+  label { display: block; margin-top: 12px; margin-bottom: 5px; font-weight: bold; }
+  input, select, textarea {
+    width: 100%; padding: 10px; background: var(--field); color: #fff;
+    border: 1px solid var(--field-border); border-radius: 6px; font-size: 14px;
+  }
+  textarea { min-height: 120px; resize: vertical; font-family: monospace; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #777; }
+  button { border: none; border-radius: 6px; padding: 10px 15px; color: white; cursor: pointer; font-weight: bold; margin-top: 10px; }
+  button:hover { filter: brightness(1.15); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+  .generate-button { background: #2e7d32; width: 100%; font-size: 16px; padding: 14px; }
+  .copy-button { background: #1565c0; }
+  .import-button { background: #6a1b9a; }
+  .reconfigure-button { background: #ef6c00; }
+  .save-button { background: #2e7d32; }
+  .load-button { background: #1565c0; }
+  .delete-button { background: #c62828; }
+  .export-button { background: #00838f; }
+  .button-editor { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-top: 15px; background: #161616; }
+  .button-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .button-header h3 { margin: 0; }
+  .button-actions { display: flex; gap: 6px; }
+  .button-actions button { margin-top: 0; padding: 6px 10px; font-size: 13px; }
+  .move-button { background: #37474f; }
+  .duplicate-button { background: #455a64; }
+  .remove-button { background: #c62828; margin-top: 0; }
+  .add-button { background: #37474f; width: 100%; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .checkbox-row input { width: auto; }
+  .saved-config-row { display: flex; gap: 8px; align-items: center; }
+  .saved-config-row select { flex: 1; }
+  .saved-config-row button { margin-top: 0; }
+  #output { min-height: 180px; }
+  .char-counter { font-size: 12px; color: var(--muted); margin-top: 4px; text-align: right; }
+  .char-counter.warn { color: #ffb74d; }
+  .char-counter.over { color: #ff8d8d; font-weight: bold; }
+  .status { margin-top: 10px; padding: 10px; border-radius: 6px; display: none; }
+  .success { display: block; background: #163d1a; color: #8cff98; }
+  .error { display: block; background: #4a1515; color: #ff8d8d; }
+  .warning { display: block; background: #4a3d15; color: #ffd98d; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 5px; }
+  .separator { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ----- Live preview (mock Minecraft dialog) ----- */
+  .preview-shell {
+    background: #313131;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 16px 16px;
+    border: 4px solid #1a1a1a;
+    box-shadow: inset 0 0 0 2px #4a4a4a;
+    border-radius: 4px;
+    padding: 18px;
+    image-rendering: pixelated;
+  }
+  .preview-title {
+    text-align: center;
+    font-family: "Courier New", monospace;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    margin-bottom: 14px;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+    word-break: break-word;
+  }
+  .preview-input {
+    background: #8b8b8b;
+    border: 2px solid #2b2b2b;
+    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.15);
+    color: #fff;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    border-radius: 2px;
+  }
+  .preview-grid {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .preview-button {
+    background: #6b6b6b;
+    border: 2px solid #2b2b2b;
+    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.15);
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 2px;
+    overflow-wrap: anywhere;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  }
+  .preview-empty { color: var(--muted); font-style: italic; text-align: center; padding: 10px; }
+
+  /* ----- Custom confirm modal (native confirm() is unreliable in embedded pages) ----- */
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .confirm-box {
+    background: #1c1c1c; border: 1px solid #444; border-radius: 10px;
+    padding: 20px; max-width: 360px; width: 100%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .confirm-box p { margin: 0 0 16px 0; line-height: 1.4; }
+  .confirm-actions { display: flex; gap: 10px; }
+  .confirm-actions button { flex: 1; margin-top: 0; }
+  .confirm-yes { background: #c62828; }
+  .confirm-no { background: #37474f; }
+
+  /* ----- Collapsible sections ----- */
+  .controls-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .controls-bar button { margin-top: 0; background: #37474f; }
+  .group-title {
+    font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted);
+    margin: 28px 4px 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin: 0; cursor: pointer; user-select: none;
+  }
+  .section-header:focus-visible { outline: 2px solid #777; outline-offset: 4px; border-radius: 4px; }
+  .section-header .chev { font-size: 13px; color: var(--muted); transition: transform 0.15s; }
+  .section.collapsed .chev { transform: rotate(-90deg); }
+  .section-body { margin-top: 14px; }
+  .section.collapsed .section-body { display: none; }
+
+  /* ----- Compact mode ----- */
+  body.compact { padding: 14px; padding-top: max(14px, env(safe-area-inset-top, 0px)); padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); font-size: 13px; }
+  body.compact .container { max-width: 760px; }
+  body.compact h1 { font-size: 20px; margin: 0 0 10px; }
+  body.compact .section { padding: 10px 14px; margin-bottom: 8px; border-radius: 8px; }
+  body.compact h2 { font-size: 15px; }
+  body.compact h3 { font-size: 13px; margin: 8px 0 4px; }
+  body.compact .section-body { margin-top: 8px; }
+  body.compact label { font-size: 12px; margin-top: 8px; margin-bottom: 3px; }
+  body.compact input, body.compact select, body.compact textarea { padding: 6px 8px; font-size: 13px; }
+  body.compact textarea { min-height: 64px; }
+  body.compact #output { min-height: 110px; }
+  body.compact button { padding: 6px 11px; font-size: 12px; margin-top: 6px; }
+  body.compact .generate-button { padding: 9px; font-size: 14px; }
+  body.compact .button-editor { padding: 8px 10px; margin-top: 8px; }
+  body.compact .button-actions button { padding: 4px 8px; font-size: 12px; }
+  body.compact .checkbox-row { margin-top: 8px; gap: 6px; }
+  body.compact .hint { font-size: 11.5px; margin: 3px 0 0; }
+  body.compact .status { margin-top: 6px; padding: 6px 10px; font-size: 12px; }
+  body.compact .separator { margin: 10px 0; }
+  body.compact .group-title { margin: 14px 2px 8px; padding-bottom: 4px; font-size: 11px; }
+  body.compact .controls-bar { margin-bottom: 6px; }
+  body.compact .preview-shell { padding: 12px; }
+  body.compact .preview-title { font-size: 15px; margin-bottom: 8px; }
+  body.compact .preview-input, body.compact .preview-button { padding: 5px 6px; font-size: 12px; }
+  body.compact .controls-bar button, body.compact .button-actions button, body.compact .saved-config-row button, body.compact .confirm-actions button, body.compact .remove-button { margin-top: 0; }
+  body.compact .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  body.compact .grid2 > div { min-width: 0; }
+  @media (max-width: 600px) { body.compact .grid2 { grid-template-columns: 1fr; } }
+
+  @media (max-width: 700px) {
+    body { padding: 15px; }
+    .saved-config-row { flex-direction: column; align-items: stretch; }
+    .saved-config-row button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎮 Minecraft Dialog GUI Generator</h1>
+
+  <div class="controls-bar">
+    <label for="layoutMode" style="margin:0;align-self:center;">Layout</label>
+    <select id="layoutMode" style="width:auto;" onchange="setLayout(this.value)">
+      <option value="compact">Compact</option>
+      <option value="comfortable">Comfortable</option>
+    </select>
+    <button onclick="setAllCollapsed(false)">⤢ Expand all</button>
+    <button onclick="setAllCollapsed(true)">⤡ Collapse all</button>
+  </div>
+  <div id="globalStatus" class="status"></div>
+
+  <div class="section" id="sec-templates">
+    <h2>📚 Templates</h2>
+    <p class="hint">Start from a ready-made GUI. This replaces whatever is currently in the builder.</p>
+    <div class="saved-config-row">
+      <select id="templateSelect"></select>
+      <button class="load-button" onclick="loadTemplate()">Use Template</button>
+    </div>
+    <div id="templateStatus" class="status"></div>
+  </div>
+
+  <div class="section" id="sec-gui">
+    <h2>⚙️ GUI Configuration</h2>
+    <div class="grid2">
+      <div>
+        <label for="title">GUI Title</label>
+        <input id="title" value="" placeholder="e.g. My Minecraft GUI">
+      </div>
+      <div>
+        <label for="titleColor">Title Color</label>
+        <select id="titleColor"></select>
+        <input type="color" id="titleHex" value="#ffffff" style="display:none;width:80px;height:32px;padding:2px;margin-top:4px;">
+      </div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="titleBold"><label for="titleBold" style="margin:0;">Bold</label>
+      <input type="checkbox" id="titleItalic" style="margin-left:14px;"><label for="titleItalic" style="margin:0;">Italic</label>
+      <input type="checkbox" id="titleUnderlined" style="margin-left:14px;"><label for="titleUnderlined" style="margin:0;">Underline</label>
+      <input type="checkbox" id="titleStrike" style="margin-left:14px;"><label for="titleStrike" style="margin:0;">Strikethrough</label>
+    </div>
+
+    <label for="bodyText">Body Text (optional)</label>
+    <textarea id="bodyText" placeholder="A short description shown between the title and the inputs/buttons..." style="min-height: 70px;"></textarea>
+    <p class="hint">Plain descriptive text shown under the title, above the inputs and buttons. Leave blank to omit it.</p>
+
+    <label for="columns">Button Columns</label>
+    <input id="columns" type="number" min="1" value="" placeholder="1">
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="pauseGame" checked>
+      <label for="pauseGame" style="margin:0;">Pause game while dialog is open (single-player)</label>
+    </div>
+
+    <label for="afterAction">After a Button is Pressed</label>
+    <select id="afterAction">
+      <option value="close" selected>Close the dialog</option>
+      <option value="none">Keep the dialog open</option>
+      <option value="wait_for_response">Show "Waiting for Response"</option>
+    </select>
+    <p class="hint" id="afterActionHint">If the game is paused, "Keep the dialog open" isn't allowed — Minecraft refuses to load a paused dialog that never closes.</p>
+  </div>
+
+  <div class="section" id="sec-who">
+    <h2>🎯 Who Sees the Dialog</h2>
+    <label for="targetSelector">Show dialog to</label>
+    <select id="targetSelector">
+      <option value="@p">Nearest player (@p)</option>
+      <option value="@a">All players (@a)</option>
+      <option value="@s">Whoever runs the command (@s)</option>
+      <option value="custom">Custom selector or player name…</option>
+    </select>
+    <input id="customSelector" placeholder="e.g. @a[team=red] or Steve" style="display:none;margin-top:8px;">
+    <p class="hint">Buttons always run as the player who clicks them, whichever option you pick.</p>
+  </div>
+
+  <div class="section" id="sec-exit">
+    <h2>🚪 Exit Button</h2>
+    <div class="checkbox-row">
+      <input type="checkbox" id="exitEnabled"><label for="exitEnabled" style="margin:0;">Add an exit button in the footer</label>
+    </div>
+    <div id="exitFields" style="display:none;">
+      <label for="exitLabel">Exit Button Text</label>
+      <input id="exitLabel" value="" placeholder="Close">
+      <label for="exitColor">Text Color</label>
+      <select id="exitColor"></select>
+      <input type="color" id="exitHex" value="#ffffff" style="display:none;width:80px;height:36px;padding:2px;margin-top:6px;">
+      <label for="exitCommand">Command (optional)</label>
+      <input id="exitCommand" placeholder="Leave blank to just close the dialog">
+    </div>
+  </div>
+
+  <div class="section" id="sec-inputs">
+    <h2>📝 Player Inputs</h2>
+    <p class="hint">Text fields shown to the player before they press a button. Each has a label (what the player sees) and a key (the macro placeholder used in your commands, e.g. <code>$(target_player)</code>).</p>
+    <div id="inputsList"></div>
+    <button class="add-button" onclick="addInput()">➕ Add Input Field</button>
+  </div>
+
+  <div class="section" id="sec-buttons">
+    <h2>🔘 Buttons</h2>
+    <div id="buttons"></div>
+    <button class="add-button" onclick="addButton()">➕ Add Button</button>
+  </div>
+
+  <div class="section" id="sec-preview">
+    <h2>🖼️ Live Preview</h2>
+    <p class="hint">A rough mock-up of how the dialog will look in-game. Colors and layout are approximate.</p>
+    <div class="preview-shell">
+      <div id="previewTitle" class="preview-title"></div>
+      <div id="previewBody" class="preview-input" style="display:none; background:transparent; border:none; box-shadow:none; text-align:center; padding: 0 0 10px 0;"></div>
+      <div id="previewInputs"></div>
+      <div id="previewGrid" class="preview-grid"></div>
+      <div id="previewExit" class="preview-button" style="display:none;margin:10px auto 0;max-width:60%;"></div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-share">
+    <h2>🔗 Share by Link</h2>
+    <p class="hint">Creates a link containing your whole GUI. If a link doesn't open your GUI (some embedded viewers drop the part after #), paste it into the box below instead.</p>
+    <button class="export-button" onclick="createShareLink()">🔗 Create Share Link</button>
+    <textarea id="shareOutput" readonly style="min-height:70px" placeholder="Your share link appears here"></textarea>
+    <button class="copy-button" onclick="copyFromElement('shareOutput','shareStatus')">📋 Copy Link</button>
+    <label for="shareInput">Load from a share link or code</label>
+    <textarea id="shareInput" style="min-height:70px" placeholder="Paste a share link or code..."></textarea>
+    <button class="import-button" onclick="loadShareCode()">📥 Load Shared GUI</button>
+    <div id="shareStatus" class="status"></div>
+  </div>
+
+  <div class="section" id="sec-import">
+    <h2>📥 Import Command</h2>
+    <p class="hint">Paste a complete generated <code>/dialog show</code> command here. This will replace the entire current GUI configuration.</p>
+    <textarea id="importCommand" placeholder="/execute as @p run dialog show @s {...}"></textarea>
+    <button class="import-button" onclick="importCommand()">📥 Import Full Command</button>
+    <div id="importStatus" class="status"></div>
+  </div>
+
+  <div class="section" id="sec-onebutton">
+    <h2>🔧 Configure One Button</h2>
+    <p class="hint">Choose the button in your current GUI that you want to replace, then paste another complete dialog command. You can then choose which button from that pasted command should be used.</p>
+    <label for="buttonToReplace">Current Button to Replace</label>
+    <select id="buttonToReplace"></select>
+    <label for="singleButtonCommand">Command to Import From</label>
+    <textarea id="singleButtonCommand" placeholder="/execute as @p run dialog show @s {...}" oninput="updateImportedButtonDropdown()"></textarea>
+    <button class="reconfigure-button" onclick="scanImportedButtons()">🔍 Read Buttons From Command</button>
+    <label for="importedButton">Button From Imported Command</label>
+    <select id="importedButton"><option value="">-- Paste a command and scan it first --</option></select>
+    <button class="reconfigure-button" onclick="reconfigureOneButton()">🔧 Replace Selected Button</button>
+    <div id="singleButtonStatus" class="status"></div>
+  </div>
+
+  <div class="section" id="sec-save">
+    <h2>💾 Save &amp; Load Configurations</h2>
+    <p class="hint">Saved configurations are stored in this browser. Export a config if you want to move it to another computer or share it.</p>
+    <label for="configName">Configuration Name</label>
+    <input id="configName" placeholder="Example: Admin Panel">
+    <button class="save-button" onclick="saveConfig()">💾 Save Current Config</button>
+    <h3>Load Saved Config</h3>
+    <div class="saved-config-row">
+      <select id="savedConfigs"><option value="">-- Select a saved configuration --</option></select>
+      <button class="load-button" onclick="loadConfig()">📂 Load</button>
+      <button class="delete-button" onclick="deleteConfig()">🗑 Delete</button>
+    </div>
+    <div class="separator"></div>
+    <h3>Export / Import Config</h3>
+    <p class="hint">Export the current configuration as a JSON file.</p>
+    <button class="export-button" onclick="exportConfig()">📤 Export Config</button>
+    <button class="import-button" onclick="importSavedConfig()">📥 Import Config</button>
+    <input type="file" id="configFile" accept=".json" style="display:none" onchange="handleConfigFile(event)">
+    <div id="saveStatus" class="status"></div>
+    <div class="separator"></div>
+    <p class="hint">Your in-progress work is auto-saved in this browser as you go, so a refresh won't lose it.</p>
+    <button class="delete-button" onclick="discardDraft()">🧹 Discard Auto-Saved Draft &amp; Start Fresh</button>
+  </div>
+
+  <div id="validationWarnings" class="status warning" style="white-space: pre-line;"></div>
+
+  <div class="section" id="sec-output">
+    <h2>⚡ Generated Command</h2>
+    <button class="generate-button" onclick="generate()">⚡ Generate Command</button>
+    <label for="output">Generated Command</label>
+    <textarea id="output" readonly></textarea>
+    <div id="charCounter" class="char-counter">0 characters</div>
+    <button class="copy-button" onclick="copyCommand()">📋 Copy Command</button>
+    <div id="generateStatus" class="status"></div>
+  </div>
+</div>
+
+<script>
+const minecraftColors = ["black","dark_blue","dark_green","dark_aqua","dark_red","dark_purple","gold","gray","dark_gray","blue","green","aqua","red","light_purple","yellow","white"];
+
+// Hex approximations of Minecraft's formatting colors, for the live preview only.
+const colorHexMap = {
+  black: "#000000", dark_blue: "#0000AA", dark_green: "#00AA00", dark_aqua: "#00AAAA",
+  dark_red: "#AA0000", dark_purple: "#AA00AA", gold: "#FFAA00", gray: "#AAAAAA",
+  dark_gray: "#555555", blue: "#5555FF", green: "#55FF55", aqua: "#55FFFF",
+  red: "#FF5555", light_purple: "#FF55FF", yellow: "#FFFF55", white: "#FFFFFF"
+};
+
+// Minecraft's practical command-length ceiling (chat/command input limit).
+const COMMAND_LENGTH_LIMIT = 32500;
+const COMMAND_LENGTH_WARN_AT = 0.9; // warn at 90% of the limit
+
+let buttons = [
+  { text: "", color: "white", bold: false, tooltip: "", command: "" }
+];
+
+let inputs = [];
+
+const $ = id => document.getElementById(id);
+
+/* ===== COLOR / STYLE HELPERS ===== */
+function setColorControls(sel, picker, value) {
+  value = value || "white";
+  if (value.startsWith("#")) { setSelectValue(sel, "custom"); picker.value = value; }
+  else setSelectValue(sel, value);
+  picker.style.display = sel.value === "custom" ? "" : "none";
+}
+function getColorControls(sel, picker) { return sel.value === "custom" ? picker.value : sel.value; }
+function cssColor(c) { return c && c.startsWith("#") ? c : (colorHexMap[c] || "#ffffff"); }
+function applyTextStyle(el, s) {
+  el.style.color = cssColor(s.color);
+  el.style.fontWeight = s.bold ? "bold" : "normal";
+  el.style.fontStyle = s.italic ? "italic" : "normal";
+  el.style.textDecoration = [s.underlined && "underline", s.strikethrough && "line-through"].filter(Boolean).join(" ") || "none";
+}
+function textObj(text, s) {
+  const o = { text: text, color: s.color, bold: !!s.bold };
+  if (s.italic) o.italic = true;
+  if (s.underlined) o.underlined = true;
+  if (s.strikethrough) o.strikethrough = true;
+  return o;
+}
+function getTitleStyle() {
+  return { color: getColorControls($("titleColor"), $("titleHex")), bold: $("titleBold").checked, italic: $("titleItalic").checked, underlined: $("titleUnderlined").checked, strikethrough: $("titleStrike").checked };
+}
+function setSelector(sel, custom) {
+  const s = $("targetSelector");
+  if (["@p", "@a", "@s"].includes(sel)) s.value = sel;
+  else { s.value = "custom"; $("customSelector").value = custom || sel || ""; }
+  $("customSelector").style.display = s.value === "custom" ? "" : "none";
+}
+function getSelector() {
+  const v = $("targetSelector").value;
+  return v === "custom" ? ($("customSelector").value.trim() || "@p") : v;
+}
+
+/* ===== MODELS ===== */
+function newInput(type) {
+  return { type: type || "text", label: "", key: "", initial: "", maxLength: "", checked: false, options: "", start: 0, end: 10, step: 1, initialNum: "" };
+}
+function normInput(i) { return { ...newInput(i.type || "text"), ...i }; }
+function normButton(b) {
+  return { text: "", color: "white", bold: false, italic: false, underlined: false, strikethrough: false, tooltip: "", actionType: "run_command", command: "", ...b };
+}
+const ACTION_LABELS = {
+  run_command: "Command", suggest_command: "Command to suggest in chat",
+  open_url: "URL (https://...)", copy_to_clipboard: "Text to copy", show_dialog: "Dialog ID (e.g. mypack:menu)"
+};
+const num = (v, d) => (v === "" || v === null || v === undefined || Number.isNaN(Number(v))) ? d : Number(v);
+
+/* ===== COLOR DROPDOWNS ===== */
+function populateColorSelect(select) {
+  select.innerHTML = "";
+  minecraftColors.forEach(color => {
+    const option = document.createElement("option");
+    option.value = color;
+    option.textContent = color;
+    select.appendChild(option);
+  });
+  const custom = document.createElement("option");
+  custom.value = "custom";
+  custom.textContent = "custom (hex picker)";
+  select.appendChild(custom);
+}
+
+function setSelectValue(select, value) {
+  if (!value) return;
+  let option = [...select.options].find(o => o.value === value);
+  if (!option) {
+    option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  }
+  select.value = value;
+}
+
+/* ===== CUSTOM CONFIRM MODAL ===== */
+/* Native confirm()/window.confirm can be silently blocked in embedded/sandboxed pages,
+   which makes delete buttons look broken. This replaces it with an on-page popup. */
+function showConfirmModal(message, confirmLabel) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <p>${escapeHTML(message)}</p>
+        <div class="confirm-actions">
+          <button class="confirm-yes">${escapeHTML(confirmLabel || "Yes, delete")}</button>
+          <button class="confirm-no">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const cleanup = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+
+    overlay.querySelector(".confirm-yes").onclick = () => cleanup(true);
+    overlay.querySelector(".confirm-no").onclick = () => cleanup(false);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+    document.addEventListener("keydown", function escHandler(e) {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", escHandler);
+        cleanup(false);
+      }
+    });
+  });
+}
+
+/* ===== HTML ESCAPING ===== */
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+/* ===== INPUT FIELDS RENDERING ===== */
+function inputExtraHTML(f, i) {
+  if (f.type === "boolean") {
+    return `<div class="checkbox-row"><input type="checkbox" id="inputChecked${i}" ${f.checked ? "checked" : ""} onchange="inputs[${i}].checked=this.checked;generate();"><label for="inputChecked${i}" style="margin:0;">Checked by default</label></div>`;
+  }
+  if (f.type === "single_option") {
+    return `<label for="inputOptions${i}">Options (one per line, first is the default)</label>
+      <textarea id="inputOptions${i}" style="min-height:80px" oninput="inputs[${i}].options=this.value;generate();">${escapeHTML(f.options)}</textarea>`;
+  }
+  if (f.type === "number_range") {
+    return `<div class="grid2">
+      <div><label for="inputStart${i}">Minimum</label><input id="inputStart${i}" type="number" value="${escapeHTML(f.start)}" oninput="inputs[${i}].start=this.value;generate();"></div>
+      <div><label for="inputEnd${i}">Maximum</label><input id="inputEnd${i}" type="number" value="${escapeHTML(f.end)}" oninput="inputs[${i}].end=this.value;generate();"></div>
+      <div><label for="inputStep${i}">Step</label><input id="inputStep${i}" type="number" value="${escapeHTML(f.step)}" oninput="inputs[${i}].step=this.value;generate();"></div>
+      <div><label for="inputInitNum${i}">Default (optional)</label><input id="inputInitNum${i}" type="number" value="${escapeHTML(f.initialNum)}" oninput="inputs[${i}].initialNum=this.value;generate();"></div>
+    </div>`;
+  }
+  return `<div class="grid2">
+      <div><label for="inputInitial${i}">Default text (optional)</label><input id="inputInitial${i}" value="${escapeHTML(f.initial)}" oninput="inputs[${i}].initial=this.value;generate();"></div>
+      <div><label for="inputMax${i}">Max length (optional)</label><input id="inputMax${i}" type="number" min="1" value="${escapeHTML(f.maxLength)}" oninput="inputs[${i}].maxLength=this.value;generate();"></div>
+    </div>`;
+}
+
+function renderInputs() {
+  const container = $("inputsList");
+  container.innerHTML = "";
+
+  if (inputs.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "No input fields yet. The dialog will only show buttons.";
+    container.appendChild(p);
+    generate();
+    return;
+  }
+
+  inputs.forEach((f, index) => {
+    const div = document.createElement("div");
+    div.className = "button-editor";
+    div.innerHTML = `
+      <div class="button-header">
+        <h3>Input ${index + 1}</h3>
+        <div class="button-actions">
+          <button class="move-button" title="Move up" ${index === 0 ? "disabled" : ""} onclick="moveInput(${index}, -1)">⬆</button>
+          <button class="move-button" title="Move down" ${index === inputs.length - 1 ? "disabled" : ""} onclick="moveInput(${index}, 1)">⬇</button>
+          <button class="remove-button" title="Remove" onclick="removeInput(${index})">🗑 Remove</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+      <label for="inputType${index}">Type</label>
+      <select id="inputType${index}" onchange="inputs[${index}].type=this.value;renderInputs();">
+        <option value="text" ${f.type === "text" ? "selected" : ""}>Text field</option>
+        <option value="boolean" ${f.type === "boolean" ? "selected" : ""}>Checkbox (true/false)</option>
+        <option value="single_option" ${f.type === "single_option" ? "selected" : ""}>Dropdown (pick one)</option>
+        <option value="number_range" ${f.type === "number_range" ? "selected" : ""}>Number slider</option>
+      </select>
+        </div>
+        <div>
+      <label for="inputLabel${index}">Label (shown to player)</label>
+      <input id="inputLabel${index}" value="${escapeHTML(f.label)}" oninput="inputs[${index}].label = this.value; generate();">
+        </div>
+      </div>
+
+      <label for="inputKey${index}">Key (macro placeholder)</label>
+      <input id="inputKey${index}" value="${escapeHTML(f.key)}" oninput="inputs[${index}].key = this.value; inputs.forEach((_, n) => validateInputKey(n)); generate();">
+      <p class="hint" id="inputKeyHint${index}"></p>
+      ${inputExtraHTML(f, index)}
+    `;
+    container.appendChild(div);
+  });
+
+  inputs.forEach((_, index) => validateInputKey(index));
+  generate();
+}
+
+function addInput() {
+  inputs.push({ ...newInput('text'), label: `Input ${inputs.length + 1}`, key: `input_${inputs.length + 1}` });
+  renderInputs();
+}
+
+async function removeInput(index) {
+  const label = inputs[index].label || `Input ${index + 1}`;
+  const confirmed = await showConfirmModal(`Remove "${label}"? Any command referencing $(${inputs[index].key}) will need to be updated manually.`);
+  if (!confirmed) return;
+  inputs.splice(index, 1);
+  renderInputs();
+}
+
+function moveInput(index, direction) {
+  const target = index + direction;
+  if (target < 0 || target >= inputs.length) return;
+  [inputs[index], inputs[target]] = [inputs[target], inputs[index]];
+  renderInputs();
+}
+
+function getDuplicateKeys() {
+  const counts = {};
+  inputs.forEach(i => {
+    const k = (i.key || "").trim();
+    if (k) counts[k] = (counts[k] || 0) + 1;
+  });
+  return Object.keys(counts).filter(k => counts[k] > 1);
+}
+
+function validateInputKey(index) {
+  const hint = document.getElementById(`inputKeyHint${index}`);
+  if (!hint) return true;
+  const key = (inputs[index]?.key || "").trim();
+  const valid = /^[a-zA-Z0-9_]+$/.test(key);
+  const isDuplicate = key !== "" && getDuplicateKeys().includes(key);
+
+  if (isDuplicate) {
+    hint.innerHTML = `⚠ Another input already uses the key <code>${escapeHTML(key)}</code>. Keys must be unique or commands will read the wrong value.`;
+    hint.style.color = "#ff8d8d";
+  } else if (!valid && key !== "") {
+    hint.innerHTML = `⚠ Only letters, numbers and underscores are allowed — spaces or symbols may break the macro placeholder.`;
+    hint.style.color = "#ffb74d";
+  } else {
+    hint.innerHTML = `Letters, numbers and underscores only — used as <code>$(${escapeHTML(key || "key_name")})</code> in commands.`;
+    hint.style.color = "";
+  }
+  return valid && !isDuplicate;
+}
+
+/* ===== BUTTON RENDERING ===== */
+function buttonColorChanged(i) {
+  const sel = $(`buttonColor${i}`), pick = $(`buttonHex${i}`);
+  buttons[i].color = getColorControls(sel, pick);
+  pick.style.display = sel.value === "custom" ? "" : "none";
+  generate();
+}
+
+function renderButtons() {
+  const container = $("buttons");
+  container.innerHTML = "";
+
+  buttons.forEach((button, index) => {
+    const at = button.actionType || "run_command";
+    const div = document.createElement("div");
+    div.className = "button-editor";
+    const styleBox = (key, label) => `<input type="checkbox" id="button_${key}${index}" ${button[key] ? "checked" : ""} style="margin-left:10px;" onchange="buttons[${index}].${key}=this.checked;generate();"><label for="button_${key}${index}" style="margin:0;">${label}</label>`;
+
+    div.innerHTML = `
+      <div class="button-header">
+        <h3>Button ${index + 1}</h3>
+        <div class="button-actions">
+          <button class="move-button" title="Move up" ${index === 0 ? "disabled" : ""} onclick="moveButton(${index}, -1)">⬆</button>
+          <button class="move-button" title="Move down" ${index === buttons.length - 1 ? "disabled" : ""} onclick="moveButton(${index}, 1)">⬇</button>
+          <button class="duplicate-button" title="Duplicate" onclick="duplicateButton(${index})">⧉ Duplicate</button>
+          <button class="remove-button" title="Remove" onclick="removeButton(${index})">🗑 Remove</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label for="buttonText${index}">Button Text</label>
+          <input id="buttonText${index}" value="${escapeHTML(button.text)}" oninput="buttons[${index}].text = this.value; updateButtonNumberDropdown(); generate();">
+        </div>
+        <div>
+          <label for="buttonColor${index}">Text Color</label>
+          <select id="buttonColor${index}" onchange="buttonColorChanged(${index})"></select>
+          <input type="color" id="buttonHex${index}" value="#ffffff" style="display:none;width:80px;height:32px;padding:2px;margin-top:4px;" oninput="buttonColorChanged(${index})">
+        </div>
+      </div>
+
+      <div class="checkbox-row" style="flex-wrap:wrap;">
+        <input type="checkbox" id="button_bold${index}" ${button.bold ? "checked" : ""} onchange="buttons[${index}].bold=this.checked;generate();"><label for="button_bold${index}" style="margin:0;">Bold</label>
+        ${styleBox("italic", "Italic")}${styleBox("underlined", "Underline")}${styleBox("strikethrough", "Strikethrough")}
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label for="buttonTooltip${index}">Tooltip (optional)</label>
+          <input id="buttonTooltip${index}" value="${escapeHTML(button.tooltip || "")}" placeholder="Shown on hover" oninput="buttons[${index}].tooltip = this.value; generate();">
+        </div>
+        <div>
+      <label for="buttonAction${index}">Button Action</label>
+      <select id="buttonAction${index}" onchange="buttons[${index}].actionType=this.value;renderButtons();">
+        <option value="run_command" ${at === "run_command" ? "selected" : ""}>Run a command</option>
+        <option value="suggest_command" ${at === "suggest_command" ? "selected" : ""}>Suggest a command in chat</option>
+        <option value="open_url" ${at === "open_url" ? "selected" : ""}>Open a URL</option>
+        <option value="copy_to_clipboard" ${at === "copy_to_clipboard" ? "selected" : ""}>Copy text to clipboard</option>
+        <option value="show_dialog" ${at === "show_dialog" ? "selected" : ""}>Open another dialog</option>
+      </select>
+        </div>
+      </div>
+
+      <label for="buttonCommand${index}">${ACTION_LABELS[at]}</label>
+      <textarea id="buttonCommand${index}" oninput="buttons[${index}].command = this.value; generate();">${escapeHTML(button.command)}</textarea>
+      ${at === "run_command" || at === "suggest_command" ? `<p class="hint">Don't include the leading <code>/</code> — it's added automatically (and stripped here if you paste one in).</p>` : ""}
+      ${at === "run_command" ? `<p class="hint">Use <code>$(key)</code> to insert what the player entered in an input.</p>` : ""}
+    `;
+    container.appendChild(div);
+
+    const sel = $(`buttonColor${index}`);
+    populateColorSelect(sel);
+    setColorControls(sel, $(`buttonHex${index}`), button.color);
+  });
+
+  updateButtonNumberDropdown();
+  generate();
+}
+
+/* ===== ADD / REMOVE / REORDER / DUPLICATE ===== */
+function addButton() {
+  buttons.push(normButton({ text: `Button ${buttons.length + 1}` }));
+  renderButtons();
+}
+
+async function removeButton(index) {
+  if (buttons.length <= 1) {
+    showStatus("globalStatus", "You must have at least one button.", "error");
+    return;
+  }
+  const label = buttons[index].text || `Button ${index + 1}`;
+  const confirmed = await showConfirmModal(`Remove "${label}"? This can't be undone.`);
+  if (!confirmed) return;
+  buttons.splice(index, 1);
+  renderButtons();
+}
+
+function duplicateButton(index) {
+  const copy = JSON.parse(JSON.stringify(buttons[index]));
+  copy.text = copy.text ? `${copy.text} (copy)` : copy.text;
+  buttons.splice(index + 1, 0, copy);
+  renderButtons();
+}
+
+function moveButton(index, direction) {
+  const target = index + direction;
+  if (target < 0 || target >= buttons.length) return;
+  [buttons[index], buttons[target]] = [buttons[target], buttons[index]];
+  renderButtons();
+}
+
+/* ===== CURRENT BUTTON DROPDOWN ===== */
+function updateButtonNumberDropdown() {
+  const select = document.getElementById("buttonToReplace");
+  const previousValue = select.value;
+  select.innerHTML = "";
+
+  buttons.forEach((button, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = `Button ${index + 1}: ${button.text || "(No text)"}`;
+    select.appendChild(option);
+  });
+
+  if (previousValue !== "" && Number(previousValue) < buttons.length) {
+    select.value = previousValue;
+  }
+}
+
+/* ===== PARSE DIALOG COMMAND ===== */
+function parseDialogCommand(input) {
+  input = input.trim();
+  const marker = "dialog show @s ";
+  const markerIndex = input.indexOf(marker);
+
+  if (markerIndex === -1) {
+    throw new Error('Could not find "dialog show @s" in the command.');
+  }
+  if (!/^\/?execute\s+as\s+@p\s+run\s+dialog\s+show\s+@s\s/.test(input)) {
+    // Not fatal — just a heads-up that this doesn't look like our own export format.
+    console.warn("Imported command doesn't match the expected 'execute as @p run dialog show @s' prefix.");
+  }
+
+  const jsonText = input.substring(markerIndex + marker.length).trim();
+  if (!jsonText) throw new Error("No dialog JSON was found.");
+
+  try {
+    return JSON.parse(jsonText);
+  } catch (error) {
+    throw new Error("The dialog JSON could not be parsed. Make sure the command is complete.");
+  }
+}
+
+/* ===== EXTRACT BUTTON ===== */
+function extractAction(a) {
+  a = a || {};
+  const t = (a.type || "").replace("minecraft:", "");
+  if (t === "open_url") return { actionType: "open_url", command: a.url || "" };
+  if (t === "copy_to_clipboard") return { actionType: "copy_to_clipboard", command: a.value || "" };
+  if (t === "show_dialog") return { actionType: "show_dialog", command: typeof a.dialog === "string" ? a.dialog : "" };
+  const raw = typeof a.template === "string" ? a.template : (typeof a.command === "string" ? a.command : "");
+  return { actionType: t === "suggest_command" ? "suggest_command" : "run_command", command: raw.replace(/^\s*\/+/, "") };
+}
+
+function extractButton(action) {
+  if (!action) throw new Error("Invalid button/action.");
+  const label = typeof action.label === "string" ? { text: action.label } : (action.label || {});
+  let tooltip = "";
+  if (typeof action.tooltip === "string") tooltip = action.tooltip;
+  else if (action.tooltip && typeof action.tooltip.text === "string") tooltip = action.tooltip.text;
+  return normButton({
+    text: label.text || "", color: label.color || "white", bold: !!label.bold, italic: !!label.italic,
+    underlined: !!label.underlined, strikethrough: !!label.strikethrough, tooltip: tooltip, ...extractAction(action.action)
+  });
+}
+
+/* ===== EXTRACT INPUT FIELD ===== */
+function extractInput(d) {
+  if (!d) throw new Error("Invalid input field.");
+  const t = (d.type || "minecraft:text").replace("minecraft:", "");
+  const f = newInput(["boolean", "single_option", "number_range"].includes(t) ? t : "text");
+  f.label = typeof d.label === "string" ? d.label : (d.label?.text || "");
+  f.key = d.key || "";
+  if (f.type === "text") { f.initial = d.initial || ""; f.maxLength = d.max_length ?? ""; }
+  if (f.type === "boolean") f.checked = !!d.initial;
+  if (f.type === "single_option") f.options = (d.options || []).map(o => typeof o === "string" ? o : (o.id ?? "")).join("\n");
+  if (f.type === "number_range") { f.start = d.start ?? 0; f.end = d.end ?? 10; f.step = d.step ?? 1; f.initialNum = d.initial ?? ""; }
+  return f;
+}
+
+/* ===== IMPORT FULL COMMAND ===== */
+function importCommand() {
+  const input = $("importCommand").value;
+  try {
+    const dialog = parseDialogCommand(input);
+    if (!dialog || !dialog.actions) throw new Error("The imported command does not contain any dialog actions.");
+
+    const t = typeof dialog.title === "string" ? { text: dialog.title } : (dialog.title || {});
+    $("title").value = typeof t.text === "string" ? t.text : "";
+    setColorControls($("titleColor"), $("titleHex"), t.color || "white");
+    $("titleBold").checked = !!t.bold;
+    $("titleItalic").checked = !!t.italic;
+    $("titleUnderlined").checked = !!t.underlined;
+    $("titleStrike").checked = !!t.strikethrough;
+    $("pauseGame").checked = dialog.pause !== undefined ? !!dialog.pause : true;
+    setSelectValue($("afterAction"), dialog.after_action || "close");
+
+    const m = input.match(/execute\s+as\s+(\S+)\s+run\s+dialog\s+show\s+@s\s/);
+    setSelector(m ? m[1] : "@s");
+
+    let importedBody = "";
+    const bodyList = Array.isArray(dialog.body) ? dialog.body : (dialog.body ? [dialog.body] : []);
+    const firstMsg = bodyList.find(b => b && b.type === "minecraft:plain_message");
+    if (firstMsg) importedBody = typeof firstMsg.contents === "string" ? firstMsg.contents : (firstMsg.contents?.text || "");
+    $("bodyText").value = importedBody;
+
+    const ex = dialog.exit_action;
+    $("exitEnabled").checked = !!ex;
+    if (ex) {
+      const exl = typeof ex.label === "string" ? { text: ex.label } : (ex.label || {});
+      $("exitLabel").value = exl.text || "Close";
+      setColorControls($("exitColor"), $("exitHex"), exl.color || "white");
+      $("exitCommand").value = ex.action ? extractAction(ex.action).command : "";
+    }
+
+    inputs = Array.isArray(dialog.inputs) ? dialog.inputs.map(extractInput) : [];
+    if (dialog.columns !== undefined) $("columns").value = dialog.columns;
+    buttons = dialog.actions.map(extractButton);
+    renderInputs();
+    renderButtons();
+
+    showStatus("importStatus", `Successfully imported ${buttons.length} button${buttons.length === 1 ? "" : "s"} and ${inputs.length} input field${inputs.length === 1 ? "" : "s"}.`, "success");
+  } catch (error) {
+    showStatus("importStatus", error.message, "error");
+  }
+}
+
+/* ===== SCAN IMPORTED BUTTONS ===== */
+function scanImportedButtons() {
+  const input = document.getElementById("singleButtonCommand").value;
+  const select = document.getElementById("importedButton");
+
+  try {
+    const dialog = parseDialogCommand(input);
+    if (!dialog || !Array.isArray(dialog.actions)) {
+      throw new Error("The command does not contain any buttons.");
+    }
+    if (dialog.actions.length === 0) {
+      throw new Error("The imported command contains zero buttons.");
+    }
+
+    select.innerHTML = "";
+    dialog.actions.forEach((action, index) => {
+      const button = extractButton(action);
+      const option = document.createElement("option");
+      option.value = index;
+      option.textContent = `Button ${index + 1}: ${button.text || "(No text)"}`;
+      select.appendChild(option);
+    });
+
+    showStatus("singleButtonStatus", `Found ${dialog.actions.length} button${dialog.actions.length === 1 ? "" : "s"}. Choose which one to import.`, "success");
+  } catch (error) {
+    select.innerHTML = '<option value="">-- Could not read buttons --</option>';
+    showStatus("singleButtonStatus", error.message, "error");
+  }
+}
+
+/* ===== UPDATE IMPORTED BUTTON DROPDOWN ===== */
+function updateImportedButtonDropdown() {
+  const select = document.getElementById("importedButton");
+  if (document.getElementById("singleButtonCommand").value.trim() === "") {
+    select.innerHTML = '<option value="">-- Paste a command and scan it first --</option>';
+  }
+}
+
+/* ===== RECONFIGURE ONE BUTTON ===== */
+function reconfigureOneButton() {
+  const input = document.getElementById("singleButtonCommand").value;
+  const replaceIndex = Number(document.getElementById("buttonToReplace").value);
+  const importedIndex = Number(document.getElementById("importedButton").value);
+
+  try {
+    if (!input.trim()) throw new Error("Paste a command first.");
+    if (Number.isNaN(replaceIndex) || replaceIndex < 0 || replaceIndex >= buttons.length) {
+      throw new Error("Choose a valid button to replace.");
+    }
+    if (Number.isNaN(importedIndex) || importedIndex < 0) {
+      throw new Error("Choose a button from the imported command.");
+    }
+
+    const dialog = parseDialogCommand(input);
+    if (!Array.isArray(dialog.actions)) {
+      throw new Error("The imported command does not contain any buttons.");
+    }
+    if (importedIndex >= dialog.actions.length) {
+      throw new Error("The selected imported button does not exist.");
+    }
+
+    const newButton = extractButton(dialog.actions[importedIndex]);
+    buttons[replaceIndex] = newButton;
+    renderButtons();
+    document.getElementById("buttonToReplace").value = replaceIndex;
+
+    showStatus("singleButtonStatus", `Button ${replaceIndex + 1} was replaced with button ${importedIndex + 1} from the imported command.`, "success");
+  } catch (error) {
+    showStatus("singleButtonStatus", error.message, "error");
+  }
+}
+
+/* ===== CONFIGURATION SAVE DATA ===== */
+const CONFIG_SCHEMA_VERSION = 5;
+
+function getCurrentConfig() {
+  const ts = getTitleStyle();
+  return {
+    version: CONFIG_SCHEMA_VERSION,
+    title: $("title").value,
+    titleColor: ts.color, titleBold: ts.bold, titleItalic: ts.italic, titleUnderlined: ts.underlined, titleStrike: ts.strikethrough,
+    bodyText: $("bodyText").value,
+    columns: Number($("columns").value) || 1,
+    pause: $("pauseGame").checked,
+    afterAction: $("afterAction").value,
+    selector: $("targetSelector").value,
+    customSelector: $("customSelector").value,
+    exit: { enabled: $("exitEnabled").checked, label: $("exitLabel").value, color: getColorControls($("exitColor"), $("exitHex")), command: $("exitCommand").value },
+    inputs: JSON.parse(JSON.stringify(inputs)),
+    buttons: JSON.parse(JSON.stringify(buttons))
+  };
+}
+
+/* ===== APPLY CONFIGURATION ===== */
+function applyConfig(config) {
+  if (!config || typeof config !== "object") throw new Error("Invalid configuration.");
+  if (config.version !== undefined && config.version > CONFIG_SCHEMA_VERSION) {
+    throw new Error(`This configuration was saved by a newer version of the generator (v${config.version}) and may not load correctly here.`);
+  }
+
+  $("title").value = config.title || "";
+  setColorControls($("titleColor"), $("titleHex"), config.titleColor || "white");
+  $("titleBold").checked = !!config.titleBold;
+  $("titleItalic").checked = !!config.titleItalic;
+  $("titleUnderlined").checked = !!config.titleUnderlined;
+  $("titleStrike").checked = !!config.titleStrike;
+  $("columns").value = Number(config.columns) > 0 ? Number(config.columns) : "";
+  $("bodyText").value = config.bodyText || "";
+  $("pauseGame").checked = config.pause !== undefined ? !!config.pause : true;
+  setSelectValue($("afterAction"), config.afterAction || "close");
+  setSelector(config.selector === "custom" ? (config.customSelector || "") : (config.selector || "@p"), config.customSelector);
+
+  const ex = config.exit || {};
+  $("exitEnabled").checked = !!ex.enabled;
+  $("exitLabel").value = ex.label || "";
+  setColorControls($("exitColor"), $("exitHex"), ex.color || "white");
+  $("exitCommand").value = ex.command || "";
+
+  // v1 configs stored a single targetLabel/targetKey pair instead of an inputs array.
+  if (Array.isArray(config.inputs)) inputs = config.inputs.map(i => normInput(JSON.parse(JSON.stringify(i))));
+  else if (config.targetLabel !== undefined || config.targetKey !== undefined) inputs = [normInput({ label: config.targetLabel || "", key: config.targetKey || "target_player" })];
+  else inputs = [];
+
+  if (!Array.isArray(config.buttons) || config.buttons.length === 0) throw new Error("Configuration does not contain valid buttons.");
+  buttons = config.buttons.map(b => normButton(JSON.parse(JSON.stringify(b))));
+
+  renderInputs();
+  renderButtons();
+  updateButtonNumberDropdown();
+  generate();
+}
+
+/* ===== LOCAL STORAGE ===== */
+function getSavedConfigs() {
+  try {
+    const data = localStorage.getItem("minecraftDialogConfigs");
+    if (!data) return {};
+    const parsed = JSON.parse(data);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch (error) {
+    return {};
+  }
+}
+
+/* ===== UPDATE SAVED CONFIG DROPDOWN ===== */
+function updateSavedConfigDropdown() {
+  const select = document.getElementById("savedConfigs");
+  const previousValue = select.value;
+  const configs = getSavedConfigs();
+
+  select.innerHTML = '<option value="">-- Select a saved configuration --</option>';
+
+  Object.keys(configs)
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+    .forEach(name => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
+
+  if (configs[previousValue]) select.value = previousValue;
+}
+
+/* ===== SAVE CONFIG ===== */
+async function saveConfig() {
+  const name = document.getElementById("configName").value.trim();
+  if (!name) {
+    showStatus("saveStatus", "Enter a name for the configuration first.", "error");
+    return;
+  }
+
+  const configs = getSavedConfigs();
+
+  if (configs[name]) {
+    const confirmed = await showConfirmModal(`A configuration named "${name}" already exists. Overwrite it?`, "Yes, overwrite");
+    if (!confirmed) {
+      showStatus("saveStatus", "Save cancelled.", "warning");
+      return;
+    }
+  }
+
+  configs[name] = getCurrentConfig();
+
+  try {
+    localStorage.setItem("minecraftDialogConfigs", JSON.stringify(configs));
+  } catch (error) {
+    showStatus("saveStatus", "Could not save: browser storage may be full or unavailable.", "error");
+    return;
+  }
+
+  updateSavedConfigDropdown();
+  document.getElementById("savedConfigs").value = name;
+  showStatus("saveStatus", `Configuration "${name}" saved successfully.`, "success");
+}
+
+/* ===== LOAD CONFIG ===== */
+function loadConfig() {
+  const name = document.getElementById("savedConfigs").value;
+  if (!name) {
+    showStatus("saveStatus", "Choose a saved configuration first.", "error");
+    return;
+  }
+
+  const configs = getSavedConfigs();
+  if (!configs[name]) {
+    showStatus("saveStatus", "That saved configuration could not be found.", "error");
+    return;
+  }
+
+  try {
+    applyConfig(configs[name]);
+    document.getElementById("configName").value = name;
+    showStatus("saveStatus", `Configuration "${name}" loaded successfully.`, "success");
+  } catch (error) {
+    showStatus("saveStatus", error.message, "error");
+  }
+}
+
+/* ===== DELETE CONFIG ===== */
+async function deleteConfig() {
+  const name = document.getElementById("savedConfigs").value;
+  if (!name) {
+    showStatus("saveStatus", "Choose a saved configuration first.", "error");
+    return;
+  }
+  const confirmed = await showConfirmModal(`Are you sure you want to delete "${name}"?`);
+  if (!confirmed) return;
+
+  const configs = getSavedConfigs();
+  delete configs[name];
+  localStorage.setItem("minecraftDialogConfigs", JSON.stringify(configs));
+  updateSavedConfigDropdown();
+  document.getElementById("configName").value = "";
+  showStatus("saveStatus", `Configuration "${name}" deleted.`, "success");
+}
+
+/* ===== EXPORT CONFIG ===== */
+function exportConfig() {
+  const config = getCurrentConfig();
+  const name = document.getElementById("configName").value.trim() || "minecraft-dialog-config";
+  const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name.replace(/[^a-z0-9_\- ]/gi, "_") + ".json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showStatus("saveStatus", "Configuration exported successfully.", "success");
+}
+
+/* ===== IMPORT SAVED CONFIG ===== */
+function importSavedConfig() {
+  document.getElementById("configFile").click();
+}
+
+/* ===== HANDLE CONFIG FILE ===== */
+function handleConfigFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const config = JSON.parse(e.target.result);
+      applyConfig(config);
+      document.getElementById("configName").value = file.name.replace(/\.json$/i, "");
+      showStatus("saveStatus", "Configuration imported successfully.", "success");
+    } catch (error) {
+      showStatus("saveStatus", "Could not import configuration: " + error.message, "error");
+    }
+    event.target.value = "";
+  };
+  reader.readAsText(file);
+}
+
+/* ===== BUILD HELPERS ===== */
+function buildInput(f) {
+  const base = { key: f.key, label: { text: f.label } };
+  if (f.type === "boolean") return { type: "minecraft:boolean", ...base, initial: !!f.checked };
+  if (f.type === "single_option") {
+    const opts = (f.options || "").split("\n").map(o => o.trim()).filter(Boolean);
+    return { type: "minecraft:single_option", ...base, options: opts.map((o, i) => i === 0 ? { id: o, display: o, initial: true } : { id: o, display: o }) };
+  }
+  if (f.type === "number_range") {
+    const o = { type: "minecraft:number_range", ...base, start: num(f.start, 0), end: num(f.end, 10), step: num(f.step, 1) };
+    if (f.initialNum !== "" && f.initialNum !== null && f.initialNum !== undefined) o.initial = num(f.initialNum, o.start);
+    return o;
+  }
+  const o = { type: "minecraft:text", ...base };
+  if (f.initial) o.initial = f.initial;
+  if (Number(f.maxLength) > 0) o.max_length = Number(f.maxLength);
+  return o;
+}
+
+function buildAction(b) {
+  const raw = b.command || "";
+  const cmd = raw.replace(/^\s*\/+/, "");
+  switch (b.actionType) {
+    case "open_url": return { type: "minecraft:open_url", url: raw.trim() };
+    case "copy_to_clipboard": return { type: "minecraft:copy_to_clipboard", value: raw };
+    case "suggest_command": return { type: "minecraft:suggest_command", command: "/" + cmd };
+    case "show_dialog": return { type: "minecraft:show_dialog", dialog: raw.trim() };
+    default: return { type: "minecraft:dynamic/run_command", template: "/" + cmd };
+  }
+}
+
+function lintMacros(issues) {
+  const defined = new Set(inputs.map(i => (i.key || "").trim()).filter(Boolean));
+  const used = new Set();
+  const sources = buttons.map((b, i) => ({ name: `Button ${i + 1}`, cmd: b.actionType === "run_command" || !b.actionType ? b.command : "" }));
+  if ($("exitEnabled").checked) sources.push({ name: "The exit button", cmd: $("exitCommand").value });
+  sources.forEach(src => {
+    (src.cmd || "").replace(/\$\(([^)]*)\)/g, (m, k) => {
+      k = k.trim(); used.add(k);
+      if (!defined.has(k)) issues.push(`${src.name} uses $(${k}) but no input has that key.`);
+      return m;
+    });
+  });
+  inputs.forEach((i, idx) => {
+    const k = (i.key || "").trim();
+    if (k && !used.has(k)) issues.push(`Input ${idx + 1} ("${k}") isn't used by any command — fine if that's intentional.`);
+  });
+}
+
+/* ===== GENERATE COMMAND ===== */
+function generate() {
+  inputs.forEach((_, index) => validateInputKey(index));
+
+  $("titleHex").style.display = $("titleColor").value === "custom" ? "" : "none";
+  $("exitHex").style.display = $("exitColor").value === "custom" ? "" : "none";
+  $("customSelector").style.display = $("targetSelector").value === "custom" ? "" : "none";
+  $("exitFields").style.display = $("exitEnabled").checked ? "" : "none";
+
+  const afterActionHint = $("afterActionHint");
+  const output = $("output");
+  const title = $("title").value;
+  const titleStyle = getTitleStyle();
+  const bodyText = $("bodyText").value;
+  const columns = Number($("columns").value) || 1;
+  const pause = $("pauseGame").checked;
+  const afterAction = $("afterAction").value;
+  const selector = getSelector();
+  const exit = { enabled: $("exitEnabled").checked, label: $("exitLabel").value, color: getColorControls($("exitColor"), $("exitHex")), command: $("exitCommand").value };
+
+  const issues = [];
+
+  // Minecraft refuses to load a paused dialog whose after_action is "none" (it would trap the player).
+  const invalidPauseCombo = pause && afterAction === "none";
+  if (invalidPauseCombo) {
+    afterActionHint.innerHTML = "⚠ This combination is invalid in-game: a paused dialog can't stay open forever. Uncheck \"Pause game\" or pick a different after-action option.";
+    afterActionHint.style.color = "#ff8d8d";
+    issues.push("Paused dialogs can't use \"Keep the dialog open\" — uncheck Pause or change the after-action.");
+  } else {
+    afterActionHint.innerHTML = "If the game is paused, \"Keep the dialog open\" isn't allowed — Minecraft refuses to load a paused dialog that never closes.";
+    afterActionHint.style.color = "";
+  }
+
+  getDuplicateKeys().forEach(k => issues.push(`Duplicate input key "${k}" — each input needs a unique key.`));
+  inputs.forEach((i, idx) => {
+    const k = (i.key || "").trim();
+    if (k && !/^[a-zA-Z0-9_]+$/.test(k)) issues.push(`Input ${idx + 1}'s key "${k}" contains invalid characters.`);
+    if (!k) issues.push(`Input ${idx + 1} has an empty key.`);
+    if (i.type === "single_option" && !(i.options || "").trim()) issues.push(`Input ${idx + 1} is a dropdown with no options.`);
+    if (i.type === "number_range" && num(i.start, 0) >= num(i.end, 10)) issues.push(`Input ${idx + 1}'s minimum must be lower than its maximum.`);
+  });
+  buttons.forEach((b, idx) => {
+    if ((b.actionType === "run_command" || b.actionType === "suggest_command") && /^\s*\//.test(b.command || "")) issues.push(`Button ${idx + 1}'s command started with "/" — it was stripped automatically.`);
+    if (!(b.command || "").trim()) issues.push(`Button ${idx + 1} has no ${b.actionType === "run_command" ? "command" : "value"}.`);
+    if (b.actionType === "open_url" && (b.command || "").trim() && !/^https?:\/\//i.test(b.command.trim())) issues.push(`Button ${idx + 1}'s URL should start with http:// or https://.`);
+  });
+  if ($("targetSelector").value === "custom" && !$("customSelector").value.trim()) issues.push("Custom selector is empty — using @p for now.");
+  lintMacros(issues);
+
+  const dialog = {
+    type: "minecraft:multi_action",
+    title: textObj(title, titleStyle),
+    pause: pause,
+    after_action: afterAction,
+    inputs: inputs.map(buildInput),
+    columns: columns,
+    actions: buttons.map(button => {
+      const entry = { label: textObj(button.text, button), action: buildAction(button) };
+      if ((button.tooltip || "").trim()) entry.tooltip = button.tooltip;
+      return entry;
+    })
+  };
+  if (bodyText.trim()) dialog.body = [{ type: "minecraft:plain_message", contents: bodyText }];
+  if (exit.enabled) {
+    const ex = { label: textObj(exit.label || "Close", { color: exit.color }) };
+    if (exit.command.trim()) ex.action = buildAction({ actionType: "run_command", command: exit.command });
+    dialog.exit_action = ex;
+  }
+
+  const warningsEl = $("validationWarnings");
+  if (issues.length) {
+    warningsEl.textContent = "⚠ Things to check:\n• " + issues.join("\n• ");
+    warningsEl.style.display = "block";
+  } else {
+    warningsEl.textContent = "";
+    warningsEl.style.display = "none";
+  }
+
+  const prefix = selector === "@s" ? "dialog show @s " : `execute as ${selector} run dialog show @s `;
+  const command = prefix + JSON.stringify(dialog);
+  output.value = (invalidPauseCombo ? "⚠ Fix the pause / after-action combination above before using this command.\n" : "") + command;
+  updateCharCounter(command.length);
+  renderPreview({ title, titleStyle, bodyText, columns, exit });
+  saveDraft();
+}
+
+/* ===== LIVE PREVIEW ===== */
+function inputPreviewText(f) {
+  const l = f.label || "(unlabeled input)";
+  if (f.type === "boolean") return `${f.checked ? "☑" : "☐"} ${l}`;
+  if (f.type === "single_option") {
+    const first = (f.options || "").split("\n").map(o => o.trim()).filter(Boolean)[0] || "…";
+    return `${l}: ‹ ${first} ›`;
+  }
+  if (f.type === "number_range") return `${l}: ◄ ${num(f.start, 0)} – ${num(f.end, 10)} ►`;
+  return f.initial ? `${l}: ${f.initial}` : l;
+}
+
+function renderPreview(c) {
+  const titleEl = $("previewTitle");
+  titleEl.textContent = c.title || "(untitled)";
+  applyTextStyle(titleEl, c.titleStyle);
+
+  const bodyEl = $("previewBody");
+  if (c.bodyText && c.bodyText.trim()) {
+    bodyEl.textContent = c.bodyText;
+    bodyEl.style.display = "block";
+    bodyEl.style.whiteSpace = "pre-wrap";
+  } else {
+    bodyEl.style.display = "none";
+  }
+
+  const inputsEl = $("previewInputs");
+  inputsEl.innerHTML = "";
+  if (inputs.length === 0) {
+    const p = document.createElement("p");
+    p.className = "preview-empty";
+    p.textContent = "(no input fields)";
+    inputsEl.appendChild(p);
+  } else {
+    inputs.forEach(f => {
+      const div = document.createElement("div");
+      div.className = "preview-input";
+      div.textContent = inputPreviewText(f);
+      inputsEl.appendChild(div);
+    });
+  }
+
+  const gridEl = $("previewGrid");
+  gridEl.innerHTML = "";
+  gridEl.style.gridTemplateColumns = `repeat(${Math.max(1, c.columns)}, 1fr)`;
+  buttons.forEach(button => {
+    const div = document.createElement("div");
+    div.className = "preview-button";
+    div.textContent = button.text || "(no text)";
+    applyTextStyle(div, button);
+    if ((button.tooltip || "").trim()) { div.title = button.tooltip; div.style.cursor = "help"; }
+    gridEl.appendChild(div);
+  });
+
+  const exitEl = $("previewExit");
+  if (c.exit.enabled) {
+    exitEl.style.display = "block";
+    exitEl.textContent = c.exit.label || "Close";
+    applyTextStyle(exitEl, { color: c.exit.color });
+  } else {
+    exitEl.style.display = "none";
+  }
+}
+
+/* ===== CHARACTER COUNTER ===== */
+function updateCharCounter(length) {
+  const counter = document.getElementById("charCounter");
+  const warnAt = Math.floor(COMMAND_LENGTH_LIMIT * COMMAND_LENGTH_WARN_AT);
+
+  counter.textContent = `${length.toLocaleString()} / ${COMMAND_LENGTH_LIMIT.toLocaleString()} characters`;
+  counter.className = "char-counter";
+
+  if (length > COMMAND_LENGTH_LIMIT) {
+    counter.className = "char-counter over";
+    counter.textContent += " — likely too long for Minecraft's command input!";
+  } else if (length > warnAt) {
+    counter.className = "char-counter warn";
+    counter.textContent += " — getting close to the limit.";
+  }
+}
+
+/* ===== COPY COMMAND ===== */
+function copyCommand() {
+  const output = document.getElementById("output");
+  output.select();
+  output.setSelectionRange(0, output.value.length);
+
+  const fallbackCopy = () => {
+    try {
+      const ok = document.execCommand("copy");
+      showStatus("generateStatus", ok ? "Command copied to clipboard!" : "Could not copy automatically. Copy the command manually.", ok ? "success" : "error");
+    } catch (error) {
+      showStatus("generateStatus", "Could not copy automatically. Copy the command manually.", "error");
+    }
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(output.value)
+      .then(() => showStatus("generateStatus", "Command copied to clipboard!", "success"))
+      .catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+}
+
+/* ===== STATUS MESSAGE ===== */
+let statusTimeouts = {};
+function showStatus(id, message, type) {
+  const element = document.getElementById(id);
+  element.textContent = message;
+  element.className = "status " + type;
+
+  if (statusTimeouts[id]) clearTimeout(statusTimeouts[id]);
+  statusTimeouts[id] = setTimeout(() => { element.className = "status"; }, 5000);
+}
+
+/* ===== COPY (generic) ===== */
+function copyFromElement(id, statusId) {
+  const el = $(id);
+  if (!el.value) { showStatus(statusId, "Nothing to copy yet.", "error"); return; }
+  el.select();
+  el.setSelectionRange(0, el.value.length);
+  const fallback = () => {
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    showStatus(statusId, ok ? "Copied to clipboard!" : "Could not copy automatically. Copy it manually.", ok ? "success" : "error");
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(el.value).then(() => showStatus(statusId, "Copied to clipboard!", "success")).catch(fallback);
+  } else fallback();
+}
+
+/* ===== SHARE BY LINK ===== */
+function encodeShare(cfg) {
+  const bytes = new TextEncoder().encode(JSON.stringify(cfg));
+  let bin = "";
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function decodeShare(code) {
+  code = code.trim();
+  const m = code.match(/[#&]cfg=([^&\s]+)/);
+  if (m) code = m[1];
+  code = code.replace(/-/g, "+").replace(/_/g, "/");
+  while (code.length % 4) code += "=";
+  const bin = atob(code);
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+}
+
+function createShareLink() {
+  $("shareOutput").value = location.href.split("#")[0] + "#cfg=" + encodeShare(getCurrentConfig());
+  showStatus("shareStatus", "Share link created. Copy it below.", "success");
+}
+
+async function loadShareCode() {
+  const raw = $("shareInput").value;
+  if (!raw.trim()) { showStatus("shareStatus", "Paste a share link or code first.", "error"); return; }
+  let cfg;
+  try { cfg = decodeShare(raw); } catch (e) { showStatus("shareStatus", "That doesn't look like a valid share link or code.", "error"); return; }
+  const ok = await showConfirmModal("Load the shared GUI? This replaces what's currently in the builder.", "Yes, load it");
+  if (!ok) return;
+  try { applyConfig(cfg); showStatus("shareStatus", "Shared GUI loaded.", "success"); }
+  catch (e) { showStatus("shareStatus", "Could not load it: " + e.message, "error"); }
+}
+
+/* ===== TEMPLATES ===== */
+const TEMPLATES = {
+  "Teleport Menu": {
+    title: "Teleport Menu", titleColor: "aqua", titleBold: true, bodyText: "Type a player's name, then choose an action.", columns: 2, pause: true, afterAction: "close", selector: "@p",
+    inputs: [{ type: "text", label: "Player name", key: "player" }],
+    buttons: [
+      { text: "Go to player", color: "green", bold: true, tooltip: "Teleport yourself to them", command: "tp @s $(player)" },
+      { text: "Bring player to me", color: "yellow", bold: true, tooltip: "Teleport them to you", command: "tp $(player) @s" },
+      { text: "Go to spawn", color: "white", command: "tp @s 0 100 0" }
+    ],
+    exit: { enabled: true, label: "Close", color: "gray", command: "" }
+  },
+  "Admin Tools": {
+    title: "Admin Tools", titleColor: "red", titleBold: true, columns: 2, pause: true, afterAction: "close", selector: "@p",
+    inputs: [{ type: "text", label: "Target player", key: "target_player" }],
+    buttons: [
+      { text: "Heal", color: "green", tooltip: "Instant health", command: "effect give $(target_player) minecraft:instant_health 1 5" },
+      { text: "Feed", color: "gold", tooltip: "Restore hunger", command: "effect give $(target_player) minecraft:saturation 1 5" },
+      { text: "Creative", color: "aqua", command: "gamemode creative $(target_player)" },
+      { text: "Survival", color: "white", command: "gamemode survival $(target_player)" }
+    ]
+  },
+  "Kit Selector": {
+    title: "Pick a Kit Item", titleColor: "gold", titleBold: true, bodyText: "Choose an item, then press the button.", columns: 1, pause: true, afterAction: "close", selector: "@p",
+    inputs: [{ type: "single_option", label: "Item", key: "item", options: "minecraft:diamond_sword\nminecraft:bow\nminecraft:golden_apple" }],
+    buttons: [{ text: "Give me the item", color: "green", bold: true, command: "give @s $(item)" }],
+    exit: { enabled: true, label: "Cancel", color: "gray", command: "" }
+  },
+  "Server Links": {
+    title: "Welcome!", titleColor: "light_purple", titleBold: true, bodyText: "Useful links for our server.", columns: 1, pause: true, afterAction: "none", selector: "@a",
+    inputs: [],
+    buttons: [
+      { text: "Website", color: "aqua", underlined: true, actionType: "open_url", command: "https://example.com" },
+      { text: "Copy server IP", color: "green", actionType: "copy_to_clipboard", command: "play.example.com" }
+    ],
+    pause2: false,
+    exit: { enabled: true, label: "Close", color: "gray", command: "" }
+  },
+  "Time & Weather": {
+    title: "Time & Weather", titleColor: "yellow", titleBold: true, columns: 2, pause: true, afterAction: "close", selector: "@p",
+    inputs: [],
+    buttons: [
+      { text: "Day", color: "yellow", command: "time set day" },
+      { text: "Night", color: "dark_blue", command: "time set night" },
+      { text: "Clear", color: "aqua", command: "weather clear" },
+      { text: "Rain", color: "blue", command: "weather rain" }
+    ]
+  }
+};
+TEMPLATES["Server Links"].pause = false; // paused dialogs can't stay open, so this one runs unpaused
+delete TEMPLATES["Server Links"].pause2;
+
+async function loadTemplate() {
+  const name = $("templateSelect").value;
+  if (!name || !TEMPLATES[name]) return;
+  const ok = await showConfirmModal(`Load the "${name}" template? This replaces what's currently in the builder.`, "Yes, load it");
+  if (!ok) return;
+  try {
+    applyConfig({ ...JSON.parse(JSON.stringify(TEMPLATES[name])), version: CONFIG_SCHEMA_VERSION });
+    showStatus("templateStatus", `Loaded "${name}". Edit anything you like.`, "success");
+  } catch (e) {
+    showStatus("templateStatus", e.message, "error");
+  }
+}
+
+/* ===== LIVE-UPDATE BINDINGS ===== */
+function bindLiveUpdates() {
+  ["title", "columns", "bodyText", "customSelector", "exitLabel", "exitCommand"].forEach(id => $(id).addEventListener("input", generate));
+  ["titleColor", "titleHex", "titleBold", "titleItalic", "titleUnderlined", "titleStrike", "pauseGame", "afterAction", "targetSelector", "exitEnabled", "exitColor", "exitHex"].forEach(id => {
+    $(id).addEventListener("change", generate);
+    $(id).addEventListener("input", generate);
+  });
+}
+
+/* ===== AUTO-SAVED DRAFT ===== */
+const DRAFT_KEY = "minecraftDialogDraft2";
+let draftRestoring = false;
+
+function saveDraft() {
+  if (draftRestoring) return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(getCurrentConfig()));
+  } catch (error) { /* storage unavailable or full — ignore */ }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+    draftRestoring = true;
+    applyConfig(JSON.parse(raw));
+    draftRestoring = false;
+    return true;
+  } catch (error) {
+    draftRestoring = false;
+    return false;
+  }
+}
+
+function resetToDefaults() {
+  applyConfig({
+    version: CONFIG_SCHEMA_VERSION, title: "", titleColor: "white", titleBold: false, bodyText: "", columns: "",
+    pause: true, afterAction: "close", selector: "@p",
+    exit: { enabled: false, label: "", color: "white", command: "" },
+    inputs: [], buttons: [{ text: "", color: "white", tooltip: "", command: "" }]
+  });
+}
+
+async function discardDraft() {
+  const confirmed = await showConfirmModal("Discard your auto-saved draft and reset the builder to its defaults? Named saved configs are not affected.", "Yes, start fresh");
+  if (!confirmed) return;
+  try { localStorage.removeItem(DRAFT_KEY); } catch (error) {}
+  resetToDefaults();
+  showStatus("saveStatus", "Draft discarded — builder reset to defaults.", "success");
+}
+
+/* ===== COLLAPSIBLE SECTIONS ===== */
+const COLLAPSE_KEY = "minecraftDialogCollapsed";
+const SECTION_GROUPS = [
+  { title: "Build your dialog", ids: ["sec-templates", "sec-gui", "sec-inputs", "sec-buttons", "sec-exit", "sec-who", "sec-preview", "validationWarnings", "sec-output"] },
+  { title: "Tools & sharing", ids: ["sec-save", "sec-share", "sec-import", "sec-onebutton"] }
+];
+const DEFAULT_COLLAPSED = ["sec-exit", "sec-save", "sec-share", "sec-import", "sec-onebutton"];
+
+function loadCollapsed() {
+  try { const r = localStorage.getItem(COLLAPSE_KEY); if (r) return JSON.parse(r); } catch (e) {}
+  return null;
+}
+function saveCollapsed() {
+  try {
+    const st = {};
+    document.querySelectorAll(".section[id]").forEach(sec => { st[sec.id] = sec.classList.contains("collapsed"); });
+    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(st));
+  } catch (e) {}
+}
+function setCollapsed(sec, collapsed) {
+  sec.classList.toggle("collapsed", collapsed);
+  const h = sec.querySelector(".section-header");
+  if (h) h.setAttribute("aria-expanded", String(!collapsed));
+}
+function setAllCollapsed(collapsed) {
+  document.querySelectorAll(".section[id]").forEach(sec => setCollapsed(sec, collapsed));
+  saveCollapsed();
+}
+function setupSections() {
+  const container = document.querySelector(".container");
+  const saved = loadCollapsed();
+  SECTION_GROUPS.forEach(group => {
+    const t = document.createElement("div");
+    t.className = "group-title";
+    t.textContent = group.title;
+    container.appendChild(t);
+    group.ids.forEach(id => {
+      const sec = $(id);
+      container.appendChild(sec);
+      if (id === "validationWarnings") return;
+      const h = sec.querySelector("h2");
+      const body = document.createElement("div");
+      body.className = "section-body";
+      while (h.nextSibling) body.appendChild(h.nextSibling);
+      sec.appendChild(body);
+      h.className = "section-header";
+      h.setAttribute("role", "button");
+      h.tabIndex = 0;
+      const chev = document.createElement("span");
+      chev.className = "chev";
+      chev.textContent = "▼";
+      h.appendChild(chev);
+      const toggle = () => { setCollapsed(sec, !sec.classList.contains("collapsed")); saveCollapsed(); };
+      h.addEventListener("click", toggle);
+      h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      setCollapsed(sec, saved ? !!saved[id] : DEFAULT_COLLAPSED.includes(id));
+    });
+  });
+}
+
+/* ===== LAYOUT MODE ===== */
+const LAYOUT_KEY = "minecraftDialogLayout";
+function setLayout(mode) {
+  document.body.classList.toggle("compact", mode !== "comfortable");
+  $("layoutMode").value = mode === "comfortable" ? "comfortable" : "compact";
+  try { localStorage.setItem(LAYOUT_KEY, $("layoutMode").value); } catch (e) {}
+}
+
+/* ===== INITIALIZATION ===== */
+let savedLayout = "compact";
+try { savedLayout = localStorage.getItem(LAYOUT_KEY) || "compact"; } catch (e) {}
+setLayout(savedLayout);
+populateColorSelect($("titleColor"));
+setColorControls($("titleColor"), $("titleHex"), "white");
+populateColorSelect($("exitColor"));
+setColorControls($("exitColor"), $("exitHex"), "white");
+Object.keys(TEMPLATES).forEach(name => {
+  const o = document.createElement("option");
+  o.value = name; o.textContent = name;
+  $("templateSelect").appendChild(o);
+});
+inputs = inputs.map(normInput);
+buttons = buttons.map(normButton);
+bindLiveUpdates();
+setupSections();
+renderInputs();
+renderButtons();
+updateSavedConfigDropdown();
+
+let startedFromLink = false;
+if (location.hash.includes("cfg=")) {
+  try {
+    draftRestoring = true;
+    applyConfig(decodeShare(location.hash));
+    startedFromLink = true;
+    showStatus("globalStatus", "Loaded the GUI from the share link.", "success");
+  } catch (e) { /* fall through to draft */ }
+  draftRestoring = false;
+}
+if (!startedFromLink && loadDraft()) {
+  showStatus("globalStatus", "Restored your unsaved work from last time.", "success");
+}
+generate();
+
+/* ===== OFFLINE / INSTALLABLE APP ===== */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>
